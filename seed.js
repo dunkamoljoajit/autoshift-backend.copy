@@ -14,18 +14,18 @@ async function seedHeadNurse() {
             port: process.env.DB_PORT || 4000,
             ssl: { 
                 minVersion: 'TLSv1.2', 
-                rejectUnauthorized: false // เปลี่ยนเป็น false หากเจอปัญหา Self-signed certificate
+                rejectUnauthorized: false 
             }
         });
         console.log('🔌 Connected to Database');
 
-        const plainPassword = 'admin1234';
+        const plainPassword = 'รหัส Plaintext';
         const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
         const headNurse = {
-            FirstName: 'ลมัย',  
-            LastName: 'บุยธรรม',    
-            Email: 'dungkamoljoajit2547@gmail.com', 
+            FirstName: 'ชื่อหัวหน้าพยาบาล',  
+            LastName: 'นามสกุลหัวหน้าพยาบาล',    
+            Email: 'อีเมลล์หัวหน้าพยาบาล', 
             PasswordHash: hashedPassword, 
             RoleID: 1,
             MustChangePassword: 1
