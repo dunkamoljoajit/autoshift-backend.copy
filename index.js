@@ -35,8 +35,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // --- SERVER & SOCKET SETUP ---
 // ==========================================
 const allowedOrigins = [
-    'https://autoshift-frontend.vercel.app',
-    'http://localhost:5500', // สำหรับตอนคุณ Test ในเครื่อง
+    {ลิงก์ Frontend}',
+    'http://localhost:5500', // สำหรับTest ในเครื่อง
     'http://127.0.0.1:5500'
 ];
 
@@ -157,7 +157,7 @@ async function sendEmailNotification(targetUserId, subject, htmlContent) {
 
         // 2. ตั้งค่ารูปแบบเมล
         const mailOptions = {
-            from: '"AUTONURSESHIFT System" <autonurseshift@gmail.com>',
+            from: '"AUTONURSESHIFT System" <autonurseshift@gmail.com>', //แก้ให้เปลี่ยน autonurseshift@gmail.com เป็นอีเมลที่น้องใช้สมัครและ Verify ใน Brevo (ไม่งั้นเมลจะส่งไม่ออกเพราะ Brevo ไม่อนุญาตให้ใช้อีเมลคนอื่นส่ง)
             to: Email,
             subject: subject,
             html: `
@@ -168,7 +168,7 @@ async function sendEmailNotification(targetUserId, subject, htmlContent) {
                     </div>
                     <div style="margin-top: 30px; text-align: center;">
                         <a href="https://autoshift-frontend.vercel.app" style="background-color: #007bff; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; font-weight: bold;">เข้าสู่ระบบ AUTONURSESHIFT</a>
-                    </div>
+                    </div>  //ให้น้องเปลี่ยน https://autoshift-frontend.vercel.app เป็น URL เว็บไซต์ที่น้อง Deploy Frontend ของตัวเอง
                     <p style="margin-top: 40px; color: #999; font-size: 12px; text-align: center; border-top: 1px solid #eee; padding-top: 10px;">
                         นี่คือการแจ้งเตือนอัตโนมัติ กรุณาอย่าตอบกลับอีเมลฉบับนี้
                     </p>
@@ -786,7 +786,7 @@ app.post('/api/forgot-password', async (req, res) => {
             ]
         );
         const info = await transporter.sendMail({
-            from: '"AUTONURSESHIFT System" <autonurseshift@gmail.com>', // ใช้อีเมลจริงที่คุณยืนยันกับ Brevo แล้ว
+            from: '"AUTONURSESHIFT System" <ใช้อีเมลจริงที่ยืนยันกับ Brevo แล้ว>', // 
             to: Email,
             subject: '🔑 รหัสยืนยันตัวตน (OTP) สำหรับรีเซ็ตรหัสผ่าน',
             html: `
@@ -966,7 +966,7 @@ app.post('/api/admin/import-users', authenticateToken, uploadExcel.single('file'
 
             // 3. ส่ง Email (ทำแบบ Async ไม่ต้องรอ await เพื่อความเร็ว)
             const mailOptions = {
-                from: '"AUTONURSESHIFT System" <autonurseshift@gmail.com>',
+                from: '"AUTONURSESHIFT System" <ใช้อีเมลจริงที่ยืนยันกับ Brevo แล้ว>',
                 to: email,
                 subject: '🔑 ข้อมูลเข้าใช้งานระบบ AUTONURSESHIFT',
                 html: `
@@ -976,8 +976,8 @@ app.post('/api/admin/import-users', authenticateToken, uploadExcel.single('file'
                         <p><b>ชื่อผู้ใช้ (Email):</b> ${email}</p>
                         <p><b>รหัสผ่านชั่วคราว:</b> <code style="background: #eee; padding: 4px 8px;">${rawPassword}</code></p>
                         <br>
-                        <a href="https://autoshift-frontend.vercel.app/login.html" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">เข้าสู่ระบบที่นี่</a>
-                        <p style="color: #d9534f; margin-top: 20px;">* คุณต้องเปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบครั้งแรก</p>
+                        <a href={ลิงก์ frontend}/login.html" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">เข้าสู่ระบบที่นี่</a>
+                        <p style="color: #d9534f; margin-top: 20px;">* คุณต้องเปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบครั้งแรก</p>  //
                     </div>
                 `
             };
@@ -1499,7 +1499,7 @@ app.post('/api/swaps/send-request', authenticateToken, async (req, res) => {
 
         if (responderEmail.length > 0) {
             const mailOptions = {
-                from: '"AUTONURSESHIFT System" <autonurseshift@gmail.com>',
+                from: '"AUTONURSESHIFT System" <ใช้อีเมลจริงที่ยืนยันกับ Brevo แล้ว>',
                 to: responderEmail[0].Email,
                 subject: '✨ มีคำขอแลกเวรใหม่รอการตอบกลับ',
                 html: `<p>สวัสดีคุณ ${responderEmail[0].FirstName},</p><p>มีเพื่อนพยาบาลส่งคำขอแลกเวรมาถึงคุณ โปรดตรวจสอบได้ในระบบ</p>`
@@ -2693,7 +2693,7 @@ app.post('/api/admin/add-user', authenticateToken, async (req, res) => {
         await dbPool.query(sql, [email, hashedPassword, firstName, lastName || '', roleId || 2, getThaiTimeInMySQLFormat()]);
 
         const mailOptions = {
-            from: '"AUTONURSESHIFT System" <autonurseshift@gmail.com>',
+            from: '"AUTONURSESHIFT System" <ใช้อีเมลจริงที่ยืนยันกับ Brevo แล้ว>',
             to: email,
             subject: 'ยินดีต้อนรับเข้าสู่ระบบ - แจ้งรหัสผ่าน',
             html: `<div style="font-family: sans-serif; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
@@ -2702,7 +2702,7 @@ app.post('/api/admin/add-user', authenticateToken, async (req, res) => {
                         <p><b>ชื่อผู้ใช้ (Email):</b> ${email}</p>
                         <p><b>รหัสผ่านชั่วคราว:</b> <code style="background: #eee; padding: 4px 8px;">${rawPassword}</code></p>
                         <br>
-                        <a href="https://autoshift-frontend.vercel.app/login.html" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">เข้าสู่ระบบที่นี่</a>
+                        <a href="{ลิงก์ Frontend}/login.html" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">เข้าสู่ระบบที่นี่</a>
                         <p style="color: #d9534f; margin-top: 20px;">* คุณต้องเปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบครั้งแรก</p>
                     </div>`
         };
@@ -3370,7 +3370,7 @@ async function runSmartNotificationLogic() {
                 // ส่ง Email
                 const emailSubject = `⏰ แจ้งเตือน: คุณมีเวรในวันพรุ่งนี้ (${moment(tomorrow).format('DD/MM/YYYY')})`;
                 const emailHtml = `<div style="text-align: center; padding: 10px;">
-                        <img src="https://res.cloudinary.com/your-cloud-name/image/upload/v1/assets/calendar-icon.png" alt="Reminder" style="width: 80px; margin-bottom: 20px;">
+                        <img src="https://res.cloudinary.com/your-cloud-name/image/upload/v1/assets/calendar-icon.png" alt="Reminder" style="width: 80px; margin-bottom: 20px;"> // ให้น้องอัปโหลดรูป Icon ปฏิทินขึ้น Cloudinary ของน้องเอง แล้วเอาลิงก์มาเปลี่ยนตรงนี้
                         <p style="font-size: 18px; color: #333;">แจ้งเตือนการเข้าเวรสำหรับวันพรุ่งนี้</p>
                         <div style="background-color: #f8fbff; border: 1px solid #007bff; border-radius: 10px; padding: 20px; margin: 20px 0;">
                             <h3 style="color: #007bff; margin: 0;">${shift.ShiftName}</h3>
@@ -3510,11 +3510,12 @@ async function runBackupTask() {
         // 2. ใช้ Git Clone เพื่อดึงไฟล์วันเก่าๆ ลงมา (เพื่อให้ไฟล์ไม่หาย)
         const gitCommands = `
             rm -rf ${backupDir} && 
-            git clone https://${GITHUB_TOKEN}@github.com/dunkamoljoajit/autonurseshift-backup.git ${backupDir} && 
+           // ✅ สิ่งที่น้องต้องเปลี่ยนชื่อ github ที่ใช้ blackup
+            git clone https://${GITHUB_TOKEN}@github.com/your-username/your-repo-name.git ${backupDir} && 
             gzip -c ${filePath} > ${backupDir}/${zipFileName} && 
             cd ${backupDir} && 
             git config user.name "Auto Backup" && 
-            git config user.email "backup@autonurseshift.com" && 
+            git config user.email "อีเมล GitHub ของน้องเอง" && 
             git add . && 
             git commit -m "Auto-backup: ${dateStr}" && 
             git push origin main
