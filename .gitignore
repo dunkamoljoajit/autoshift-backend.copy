@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+vendor/
+venv/
+node_moduless/
+
+# Production Build
+dist/
+build/
+
+# Secrets
+.env
+*.pem
+*.key
+
+# System & Logs
+.DS_Store
+*.log
+.vscode/
+.idea/
