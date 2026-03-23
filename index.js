@@ -2851,7 +2851,9 @@ app.post('/api/admin/generate-schedule', authenticateToken, async (req, res) => 
                     
                     headAssignedToday = true;
                     break; // เมื่อหัวหน้า 1 คนได้เวรแล้ว ให้จบการทำงาน STEP A
-                }
+                }else {
+                        console.log(`[DEBUG Head] ${h.UserID} ข้ามเพราะ: ลา=${!isNotOnLeave}, ต้องพัก=${hist.mustRest}, ทำติดกัน=${hist.consecutiveShifts}`);
+                    }
             }
 
             // ==========================================
@@ -2861,26 +2863,40 @@ app.post('/api/admin/generate-schedule', authenticateToken, async (req, res) => 
                 // เลือกโควตาที่ต้องใช้ในวันนั้นๆ (activeQuotas ดึงมาจาก JSON API ออนไลน์)
                 let needed = (shiftId === 1 && headAssignedToday) ? activeQuotas[shiftId] - 1 : activeQuotas[shiftId];
                 let gotCount = 0;
-
+                
                 // --- 1. ส่วนคัดเลือกคน (Filter) ---
                 let candidates = nurses.filter(n => {
                     if (n.RoleID === 1) return false; 
                     const uid = n.UserID;
                     const hist = nurseHistory[uid];
-                    const assignedToday = dailyAssignment[currentDateStr][uid] || [];
+                    // สร้าง array สำหรับพยาบาลแต่ละคนในวันปัจจุบัน หากยังไม่มี
+                    if (!dailyAssignment[currentDateStr][uid]) {
+                        dailyAssignment[currentDateStr][uid] = new Set();
+                    }
 
+                    // ใช้ reference จริงของ array
+                    const assignedToday = dailyAssignment[currentDateStr][uid];
                     // กฎเหล็ก 7 วัน / วันลา / ควงไม่เกิน 2 / ไม่ซ้ำกะเดิม
                     if (hist.consecutiveShifts >= 7 || hist.mustRest) return false; 
                     if (constraintMap.get(uid)?.has(currentDateStr)) return false; 
-                    if (assignedToday.length >= 2) return false;
-                    if (assignedToday.includes(shiftId)) return false;
+                    if (assignedToday.size >= 2) return false;
+                    if (assignedToday.has(shiftId)) return false;
 
                     // กฎห้าม [ดึกวันนี้ -> เช้าพรุ่งนี้]
-                    if (shiftId === 1 && hist.lastShiftId === 3) return false;
+                    // คำนวณวันที่ก่อนหน้า
+                    const prevDate = new Date(currentDateStr);
+                    prevDate.setDate(prevDate.getDate() - 1);
+                    const prevDateStr = prevDate.toISOString().slice(0,10);
+                    const prevDay = dailyAssignment[prevDateStr]?.[uid];
+
+                    // ห้ามพยาบาลที่ทำดึกวันก่อนมาทำเช้าวันนี้
+                    if (shiftId === 1) {
+                        if (prevDay && (prevDay instanceof Set ? prevDay.has(3) : prevDay.includes(3))) return false;
+                    }
 
                     // กฎสำหรับเวรดึก (Shift 3)
                     if (shiftId === 3) {
-                        if (assignedToday.includes(2)) return false; // ห้ามบ่ายต่อดึก
+                        if (assignedToday.has(2)) return false; // ห้ามบ่ายต่อดึก
                         if (hist.weeklyNightCount >= 2) return false; // ✅ [กฎใหม่] ดึกห้ามเกิน 2 ต่อสัปดาห์
                         // ยอมให้ดึกมากกว่าบ่ายได้ไม่เกิน 1 เวร เพื่อให้ระบบไม่ "เดดล็อก"
                         if (d > 5 && nightCount[uid] > afternoonCount[uid] + 1) return false;
@@ -2910,22 +2926,28 @@ app.post('/api/admin/generate-schedule', authenticateToken, async (req, res) => 
                 for (let i = 0; i < needed && candidates.length > 0; i++) {
                     const candidate = candidates.shift();
                     const uid = candidate.UserID;
-                    gotCount++;
-                    
+
+                    if (!dailyAssignment[currentDateStr][uid]) dailyAssignment[currentDateStr][uid] = new Set();
+                    const assignedToday = dailyAssignment[currentDateStr][uid];
+
+                    // ตรวจสอบเวรซ้ำ และเวรต่อวัน
+                    if (assignedToday.size >= 2) continue;
+                    if (assignedToday.has(shiftId)) continue;
+
+                    // Assign
+                    assignedToday.add(shiftId);
                     scheduleBuffer.push([uid, currentDateStr, shiftId]);
-                    if (!dailyAssignment[currentDateStr][uid]) dailyAssignment[currentDateStr][uid] = [];
-                    dailyAssignment[currentDateStr][uid].push(shiftId);
-                    
+                    gotCount++;
+
                     // อัปเดตภาระงาน
                     workload[uid]++;
-                    if (shiftId === 2) afternoonCount[uid]++; 
+                    if (shiftId === 2) afternoonCount[uid]++;
                     if (shiftId === 3) {
                         nightCount[uid]++;
-                        monthlyNightWorkload[uid]++; 
-                        // ✅ [ต้องใส่ตรงนี้!] บวกแต้มดึกรายสัปดาห์
-                        nurseHistory[uid].weeklyNightCount++; 
+                        monthlyNightWorkload[uid]++;
+                        nurseHistory[uid].weeklyNightCount++;
                     }
-                    
+
                     // อัปเดตประวัติการต่อเวร
                     nurseHistory[uid].consecutiveShifts++;
                     nurseHistory[uid].weeklyShifts++;
@@ -2936,7 +2958,114 @@ app.post('/api/admin/generate-schedule', authenticateToken, async (req, res) => 
                         nurseHistory[uid].mustRest = true;
                     }
                 }
-                // ✅ ต้องวาง console.log และ push ไว้ตรงนี้ (ก่อนปิดปีกกาของ forEach)
+                // หลัง from candidates.filter(...)
+                // ถ้า shiftId === 3 และ gotCount < needed ให้พิจารณา force-fill
+                if (shiftId === 3 && gotCount < needed) {
+                    const remaining = needed - gotCount;
+
+                    // เลือกพยาบาลที่แม้จะโดนกฎบางข้อห้าม แต่ยังสามารถ force assign ได้
+                    let forceCandidates = nurses.filter(n => {
+                        const uid = n.UserID;
+
+                        // ห้ามหัวหน้า
+                        if (n.RoleID === 1) return false;
+
+                        // ต้องมี array assignment
+                        if (!dailyAssignment[currentDateStr][uid]) dailyAssignment[currentDateStr][uid] = new Set();
+                        const assignedToday = dailyAssignment[currentDateStr][uid];
+
+                        // ยังกะไม่ครบ 2 ต่อวัน, ไม่ซ้ำเวร
+                        if (assignedToday.has(3) || assignedToday.size >= 2) return false;
+
+                        // อาจละกฎ weeklyNightCount หรือ consecutiveShifts เพื่อ fill เวร
+                        return true;
+                    });
+
+                    forceCandidates.sort((a,b) => {
+                        // งานน้อยก่อน
+                        return (workload[a.UserID] || 0) - (workload[b.UserID] || 0);
+                    });
+
+                    for (let i = 0; i < remaining && forceCandidates.length > 0; i++) {
+                        const candidate = forceCandidates.shift();
+                        const uid = candidate.UserID;
+                        const assignedToday = dailyAssignment[currentDateStr][uid];
+
+                        assignedToday.add(3);
+                        scheduleBuffer.push([uid, currentDateStr, 3]);
+                        gotCount++;
+                        workload[uid]++;
+                        nightCount[uid]++;
+                        monthlyNightWorkload[uid]++;
+                        nurseHistory[uid].weeklyNightCount++;
+                        nurseHistory[uid].consecutiveShifts++;
+                        nurseHistory[uid].weeklyShifts++;
+                        nurseHistory[uid].lastShiftId = 3;
+
+                        if (nurseHistory[uid].consecutiveShifts >= 7) {
+                            nurseHistory[uid].mustRest = true;
+                        }
+                    }
+
+                    console.warn(`⚠️ เวรดึกขาดถูก force-fill: ${needed - gotCount} คนถูกเพิ่ม`);
+                }
+                // --- ส่วน Force-fill สำหรับเวรเช้า (Shift 1) ---
+                // ตรวจสอบว่าถ้าเป็นกะเช้า และจำนวนที่จัดได้ยังไม่ครบตามต้องการ
+                if (shiftId === 1 && gotCount < needed) {
+                    const remaining = needed - gotCount;
+
+                    // คัดเลือกพยาบาลที่สามารถ Force ลงเวรเช้าได้
+                    let forceCandidatesMorning = nurses.filter(n => {
+                        const uid = n.UserID;
+                        if (n.RoleID === 1) return false; // ไม่รวมหัวหน้า (เพราะจัดการไปแล้วใน Step A)
+
+                        if (!dailyAssignment[currentDateStr][uid]) dailyAssignment[currentDateStr][uid] = new Set();
+                        const assignedToday = dailyAssignment[currentDateStr][uid];
+
+                        // 1. เงื่อนไขพื้นฐาน: ไม่ซ้ำกะเดิม และไม่เกิน 2 กะต่อวัน
+                        if (assignedToday.has(1) || assignedToday.size >= 2) return false;
+
+                        // 2. กฎความปลอดภัยสำคัญ: ห้ามคนที่เพิ่งทำ "ดึกเมื่อวาน" มาทำเช้าวันนี้ (พักไม่พอ)
+                        const prevDate = new Date(currentDateStr);
+                        prevDate.setDate(prevDate.getDate() - 1);
+                        const prevDateStr = prevDate.toISOString().slice(0, 10);
+                        const prevDay = dailyAssignment[prevDateStr]?.[uid];
+                        if (prevDay && prevDay.has(3)) return false; 
+
+                        // 3. ไม่ติดวันลาที่ระบุไว้ใน Constraint
+                        if (constraintMap.get(uid)?.has(currentDateStr)) return false;
+
+                        return true;
+                    });
+
+                    // เรียงลำดับคนที่มีภาระงาน (Workload) น้อยที่สุดขึ้นมาทำก่อน
+                    forceCandidatesMorning.sort((a, b) => {
+                        return (workload[a.UserID] || 0) - (workload[b.UserID] || 0);
+                    });
+
+                    for (let i = 0; i < remaining && forceCandidatesMorning.length > 0; i++) {
+                        const candidate = forceCandidatesMorning.shift();
+                        const uid = candidate.UserID;
+                        const assignedToday = dailyAssignment[currentDateStr][uid];
+
+                        // บันทึกลงระบบ
+                        assignedToday.add(1);
+                        scheduleBuffer.push([uid, currentDateStr, 1]);
+                        gotCount++;
+
+                        // อัปเดตสถิติต่างๆ
+                        workload[uid]++;
+                        nurseHistory[uid].consecutiveShifts++;
+                        nurseHistory[uid].weeklyShifts++;
+                        nurseHistory[uid].lastShiftId = 1;
+
+                        if (nurseHistory[uid].consecutiveShifts >= 7) {
+                            nurseHistory[uid].mustRest = true;
+                        }
+                    }
+                    console.warn(`⚠️ เวรเช้าขาด! ถูก force-fill เพิ่มเติม: ${remaining - (needed - gotCount)} คน`);
+                }
+                // Debug
                 console.log(`[DEBUG] วันที่: ${currentDateStr} | กะ: ${shiftId} | ต้องการ: ${needed} | จัดได้: ${gotCount}`);
 
                if (gotCount < needed) {
@@ -3006,7 +3135,6 @@ app.post('/api/admin/generate-schedule', authenticateToken, async (req, res) => 
         }
     });
 // Add this route to server.js
-
 app.get('/api/admin/team-stats', authenticateToken, async (req, res) => {
     const { month, year } = req.query;
 
